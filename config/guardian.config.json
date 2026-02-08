@@ -1,0 +1,18 @@
+{
+  "protectedPorts": [19001],
+  "allowRemoteConnections": false,
+  "baselinePath": "%ProgramData%\\EximAI\\Guardian\\baseline.json",
+  "statePath": "%ProgramData%\\EximAI\\Guardian\\state.json",
+  "logPath": "%ProgramData%\\EximAI\\Guardian\\guardian.log",
+  "email": {
+    "enabled": false,
+    "smtpServer": "smtp.example.com",
+    "smtpPort": 587,
+    "useSsl": true,
+    "username": "user@example.com",
+    "password": "CHANGE_ME",
+    "from": "guardian@example.com",
+    "to": ["you@example.com"],
+    "subjectPrefix": "[EximAI Guardian]"
+  }
+}
