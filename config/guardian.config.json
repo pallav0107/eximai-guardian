@@ -14,5 +14,11 @@
     "from": "guardian@example.com",
     "to": ["you@example.com"],
     "subjectPrefix": "[EximAI Guardian]"
+  },
+  "relay": {
+    "enabled": false,
+    "baseUrl": "https://guardian.eximai.com",
+    "deviceToken": "PASTE_DEVICE_TOKEN_HERE",
+    "timeoutMs": 5000
   }
 }
