@@ -3,6 +3,7 @@
   "allowRemoteConnections": false,
   "baselinePath": "%ProgramData%\\EximAI\\Guardian\\baseline.json",
   "statePath": "%ProgramData%\\EximAI\\Guardian\\state.json",
+  "alertsPath": "%ProgramData%\\EximAI\\Guardian\\alerts.json",
   "logPath": "%ProgramData%\\EximAI\\Guardian\\guardian.log",
   "email": {
     "enabled": false,

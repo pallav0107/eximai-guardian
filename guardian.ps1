@@ -34,6 +34,7 @@ function Load-Config([string]$path) {
   $cfg = Get-Content -Raw -Path $path | ConvertFrom-Json
   $cfg.baselinePath = Expand-EnvPath $cfg.baselinePath
   $cfg.statePath = Expand-EnvPath $cfg.statePath
+  if ($cfg.alertsPath) { $cfg.alertsPath = Expand-EnvPath $cfg.alertsPath }
   $cfg.logPath = Expand-EnvPath $cfg.logPath
   return $cfg
 }
@@ -187,6 +188,38 @@ function Check-Exposure($cfg) {
   return $alerts
 }
 
+function Append-Alert([object]$cfg, [string]$severity, [string]$title, [string]$body, $raw) {
+  if (-not $cfg.alertsPath) { return }
+
+  $path = [string]$cfg.alertsPath
+  Ensure-ParentDir $path
+
+  $existing = @()
+  try {
+    if (Test-Path $path) {
+      $existing = @(Get-Content -Raw -Path $path | ConvertFrom-Json)
+    }
+  } catch {
+    $existing = @()
+  }
+
+  $item = [pscustomobject]@{
+    ts = (Get-Date).ToString('o')
+    severity = $severity
+    title = $title
+    body = $body
+    raw = $raw
+  }
+
+  $all = @($existing) + @($item)
+  # keep last 200 alerts
+  if ($all.Count -gt 200) {
+    $all = $all | Select-Object -Last 200
+  }
+
+  ($all | ConvertTo-Json -Depth 8) | Set-Content -Path $path -Encoding UTF8
+}
+
 function Run-Check([object]$cfg) {
   $logPath = $cfg.logPath
 
@@ -202,7 +235,7 @@ function Run-Check([object]$cfg) {
   $diffTasks = Diff-Array $baseline.tasks $snap.tasks @('TaskPath','TaskName','State')
   $diffStartup = Diff-Array $baseline.startup $snap.startup @('Path','Name','Value')
 
-  $exposureAlerts = Check-Exposure $cfg
+  $exposureAlerts = @(Check-Exposure $cfg)
 
   $hasDiff = ($diffListening.added.Count -gt 0 -or $diffListening.removed.Count -gt 0 -or
               $diffTasks.added.Count -gt 0 -or $diffTasks.removed.Count -gt 0 -or
@@ -256,6 +289,9 @@ function Run-Check([object]$cfg) {
     diffStartup = $diffStartup
   }
   Send-RelayEvent $cfg 'system_change' $severity $title $body $raw
+
+  # Store alert locally for client self-serve viewing
+  Append-Alert $cfg $severity $title $body $raw
 }
 
 function Init-Baseline([object]$cfg) {
