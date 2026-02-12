@@ -127,6 +127,35 @@ function Send-EmailAlert($cfg, [string]$subject, [string]$body) {
   }
 }
 
+function Send-RelayEvent($cfg, [string]$kind, [string]$severity, [string]$title, [string]$body, $raw) {
+  if (-not $cfg.relay) { return }
+  if (-not $cfg.relay.enabled) { return }
+  if ([string]::IsNullOrWhiteSpace([string]$cfg.relay.baseUrl)) { return }
+  if ([string]::IsNullOrWhiteSpace([string]$cfg.relay.deviceToken)) { return }
+
+  try {
+    $timeoutMs = 5000
+    if ($cfg.relay.timeoutMs) { $timeoutMs = [int]$cfg.relay.timeoutMs }
+
+    $url = ([string]$cfg.relay.baseUrl).TrimEnd('/') + '/v1/events'
+    $payload = @{
+      kind = $kind
+      severity = $severity
+      title = $title
+      body = $body
+      raw = $raw
+      ts = (Get-Date).ToString('o')
+    } | ConvertTo-Json -Depth 6
+
+    $headers = @{ Authorization = "Bearer $($cfg.relay.deviceToken)" }
+
+    Invoke-RestMethod -Method Post -Uri $url -Headers $headers -ContentType 'application/json' -Body $payload -TimeoutSec ([Math]::Ceiling($timeoutMs / 1000.0)) | Out-Null
+  } catch {
+    # Don't crash checks if relay is unreachable; just log
+    Write-Log $cfg.logPath "Relay send failed: $($_.Exception.Message)"
+  }
+}
+
 function Check-Exposure($cfg) {
   $alerts = @()
 
@@ -145,7 +174,7 @@ function Check-Exposure($cfg) {
       $r = [string]$c.RemoteAddress
       $remoteIsLoopback = ($r -eq '127.0.0.1' -or $r -eq '::1')
       if (-not $remoteIsLoopback) {
-        $alerts += "Port $port has established connection from remote address: $r:$($c.RemotePort)"
+        $alerts += "Port $port has established connection from remote address: ${r}:$($c.RemotePort)"
       }
     }
   }
@@ -216,6 +245,17 @@ function Run-Check([object]$cfg) {
 
   $subject = "$($cfg.email.subjectPrefix) Alert on $env:COMPUTERNAME"
   Send-EmailAlert $cfg $subject $body
+
+  # Send a compact event to Relay Cloud (optional)
+  $severity = if ($exposureAlerts.Count -gt 0) { 'critical' } elseif ($hasDiff) { 'warn' } else { 'info' }
+  $title = "Guardian alert on $env:COMPUTERNAME"
+  $raw = @{
+    exposureAlerts = $exposureAlerts
+    diffListening = $diffListening
+    diffTasks = $diffTasks
+    diffStartup = $diffStartup
+  }
+  Send-RelayEvent $cfg 'system_change' $severity $title $body $raw
 }
 
 function Init-Baseline([object]$cfg) {
